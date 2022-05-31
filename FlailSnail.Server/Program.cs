@@ -1,6 +1,15 @@
+using FlailSnail.Server.Configuration;
 using FlailSnail.Server.Database;
 
 var builder = WebApplication.CreateBuilder(args);
+
+Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+
+builder.Configuration.AddJsonFile("appsettings.json");
+
+#if DEBUG
+builder.Configuration.AddJsonFile("appsettings.Development.json");
+#endif
 
 // Add services to the container.
 
@@ -9,7 +18,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddScoped<IDatabaseConnector, PostgresConnector>();
+builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(nameof(DatabaseOptions)));
+
+builder.Services.AddScoped<IUserRepository, NpgUserRepository>();
 
 var app = builder.Build();
 

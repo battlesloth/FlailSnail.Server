@@ -1,25 +1,67 @@
 using FlailSnail.Server.Database;
+using FlailSnail.Server.DTO;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FlailSnail.Server.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("[controller]/[action]")]
     public class AuthenticationController : ControllerBase
     {
         private readonly ILogger<AuthenticationController> logger;
-        private readonly IDatabaseConnector database;
+        private readonly IUserRepository userRepo;
         
-        public AuthenticationController(ILogger<AuthenticationController> logger, IDatabaseConnector database)
+        public AuthenticationController(ILogger<AuthenticationController> logger, IUserRepository database)
         {
             this.logger = logger;
-            this.database = database;
+            userRepo = database;
         }
 
-        [HttpGet(Name = "login")]
-        public IActionResult Get()
+        [AllowAnonymous]
+        [HttpPost(Name = "login")]
+        public async Task<IActionResult> Login([FromBody] Credentials creds)
         {
-            return Ok();
+            var user = await userRepo.GetUser(creds.Email);
+
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            if (!user.Active)
+            {
+                return new JsonResult(new { Result = "User disabled" });
+            }
+
+            if (!BCrypt.Net.BCrypt.Verify(creds.Password, user.SaltedHash))
+            {
+                return NotFound();
+            }
+
+            await userRepo.UserLoggedIn(user.UserId);
+            return new JsonResult(user.LastLogIn);
+
+        }
+
+        [AllowAnonymous]
+        [HttpPost(Name = "register")]
+        public async Task<IActionResult> Register([FromBody] Credentials creds)
+        {
+            if (await userRepo.UserExists(creds.Email))
+            {
+                return new JsonResult(new { Result = "User exists" });
+            }
+
+            var user = new User
+            {
+                Email = creds.Email,
+                SaltedHash = BCrypt.Net.BCrypt.HashPassword(creds.Password)
+            };
+
+            var id = await userRepo.InsertUser(user);
+
+            return new JsonResult(id);
         }
     }
 }
