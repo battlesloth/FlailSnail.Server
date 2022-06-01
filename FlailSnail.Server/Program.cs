@@ -2,8 +2,25 @@ using System.Text;
 using FlailSnail.Server.Configuration;
 using FlailSnail.Server.Database;
 using FlailSnail.Server.Security;
+using FlailSnail.Server.Utility.Logging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using Serilog;
+using Serilog.Events;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.ControlledBy(LoggingSwitches.LogLevelSwitch)
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+#if DEBUG
+LoggingSwitches.LogLevelSwitch.MinimumLevel = LogEventLevel.Debug;
+#else 
+LoggingSwitches.LogLevelSwitch.MinimumLevel = LogEventLevel.Information;
+#endif
+
+Log.Information("Starting web host");
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,9 +35,33 @@ builder.Configuration.AddJsonFile("appsettings.Development.json");
 // Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    var jwtSecurity = new OpenApiSecurityScheme
+    {
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Name = "JWT Authentication",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Description = "Put **_ONLY_** your JWT token in the textbox below",
+
+        Reference = new OpenApiReference
+        {
+            Id = JwtBearerDefaults.AuthenticationScheme,
+            Type = ReferenceType.SecurityScheme
+        }
+    };
+
+    c.SwaggerDoc("v1", new OpenApiInfo {Title = "Flail Snail", Version = "v1"});
+    c.AddSecurityDefinition(jwtSecurity.Reference.Id, jwtSecurity);
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {jwtSecurity, Array.Empty<string>()}
+    });
+});
 
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(nameof(DatabaseOptions)));
 
@@ -30,6 +71,7 @@ var secret = builder.Configuration.GetSection(nameof(ServiceOptions))[nameof(Ser
 var issuer = builder.Configuration.GetSection(nameof(ServiceOptions))[nameof(ServiceOptions.JwtIssuer)];
 
 builder.Services.AddTransient<ITokenService, JwtTokenService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(
     options =>
     {
@@ -37,10 +79,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         {
             ValidIssuer = issuer,
             ValidAudience = issuer,
+            ValidateIssuer = true,
+            ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
-
         };
     });
 
@@ -53,6 +96,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseMiddleware<SlidingExpirationMiddleware>();

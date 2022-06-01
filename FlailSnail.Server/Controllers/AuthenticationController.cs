@@ -1,5 +1,6 @@
 using FlailSnail.Server.Database;
 using FlailSnail.Server.DTO;
+using FlailSnail.Server.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,8 +12,9 @@ namespace FlailSnail.Server.Controllers
     {
         private readonly ILogger<AuthenticationController> logger;
         private readonly IUserRepository userRepo;
+        private readonly ITokenService tokenService;
         
-        public AuthenticationController(ILogger<AuthenticationController> logger, IUserRepository database)
+        public AuthenticationController(ILogger<AuthenticationController> logger, IUserRepository database, ITokenService tokenService)
         {
             this.logger = logger;
             userRepo = database;
@@ -40,7 +42,13 @@ namespace FlailSnail.Server.Controllers
             }
 
             await userRepo.UserLoggedIn(user.UserId);
-            return new JsonResult(user.LastLogIn);
+
+            var token = tokenService.GetToken(
+                new JwtPayload(user.UserId.ToString(), user.Email));
+            
+            Response.Headers.Add("Set-Authorization", token);
+            
+            return new JsonResult(new {lastLogin = user.LastLogIn, token});
 
         }
 
