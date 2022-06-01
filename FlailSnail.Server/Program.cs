@@ -1,3 +1,4 @@
+using System.Text;
 using FlailSnail.Server.Configuration;
 using FlailSnail.Server.Database;
 using FlailSnail.Server.Security;
@@ -38,8 +39,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ValidAudience = issuer,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            
-            
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
 
         };
     });
@@ -54,6 +54,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthorization();
+
+app.UseMiddleware<SlidingExpirationMiddleware>();
 
 app.MapControllers();
 

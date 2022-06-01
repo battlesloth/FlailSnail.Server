@@ -1,8 +1,11 @@
-﻿namespace FlailSnail.Server.Security
+﻿using Microsoft.Extensions.Primitives;
+
+namespace FlailSnail.Server.Security
 {
     public interface ITokenService
     {
-        string GetToken(string key, string issuer, JwtPayload payload);
-        (bool success, string token) ValidateToken(string key, string issuer, string token);
+        string GetToken(JwtPayload payload);
+        bool ValidateToken(string token);
+        string ReissueToken(string token);
     }
 }
