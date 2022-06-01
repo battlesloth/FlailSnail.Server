@@ -1,5 +1,8 @@
 using FlailSnail.Server.Configuration;
 using FlailSnail.Server.Database;
+using FlailSnail.Server.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +24,25 @@ builder.Services.AddSwaggerGen();
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(nameof(DatabaseOptions)));
 
 builder.Services.AddScoped<IUserRepository, NpgUserRepository>();
+
+var secret = builder.Configuration.GetSection(nameof(ServiceOptions))[nameof(ServiceOptions.JwtSecret)];
+var issuer = builder.Configuration.GetSection(nameof(ServiceOptions))[nameof(ServiceOptions.JwtIssuer)];
+
+builder.Services.AddTransient<ITokenService, JwtTokenService>();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(
+    options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = issuer,
+            ValidAudience = issuer,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            
+            
+
+        };
+    });
 
 var app = builder.Build();
 
